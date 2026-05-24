@@ -36,11 +36,17 @@
 
 ## 🚀 快速开始
 
+### 在线预览
+
+访问 **https://你的用户名.github.io/magic-fingers/** 即可在线使用！
+
 ### 1. 项目结构
 ```
 F:\other\magic-fingers\
 ├── index.html      # 主页面
-└── app.js          # 核心逻辑
+├── app.js          # 核心逻辑
+├── README.md       # 说明文档
+└── DEPLOY.md       # GitHub部署指南
 ```
 
 ### 2. 启动项目
@@ -108,6 +114,10 @@ npx serve .
 3. **浏览器支持**：建议使用 Chrome、Edge 或 Firefox
 4. **HTTPS**：摄像头需要 HTTPS 或 localhost 环境
 5. **移动端**：推荐使用现代浏览器，建议在光线充足环境使用
+
+## 🌐 免费部署到GitHub Pages
+
+详细部署步骤请查看 [DEPLOY.md](DEPLOY.md)！
 
 ## 🌟 扩展建议
 
