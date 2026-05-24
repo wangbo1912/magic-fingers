@@ -17,6 +17,15 @@ class MagicFingers {
         this.cameraTargetY = 0;
         this.pointLights = [];
         this.effectsEnabled = true;
+        this.effectTimers = new Set();
+        this.effectGeneration = 0;
+        this.lastRawGesture = null;
+        this.rawGestureStartedAt = 0;
+        this.rawGestureFrames = 0;
+        this.lastCommittedGesture = null;
+        this.lastGestureAt = 0;
+        this.gestureHoldMs = this.isMobile ? 220 : 180;
+        this.gestureCooldownMs = this.isMobile ? 520 : 430;
         
         this.init();
     }
@@ -169,52 +178,125 @@ class MagicFingers {
     }
 
     onResults(results) {
-        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-            const landmarks = results.multiHandLandmarks[0];
-            const fingerCount = this.countFingers(landmarks);
+        if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+            this.resetGestureBuffer();
+            return;
+        }
+
+        const landmarks = results.multiHandLandmarks[0];
+        const fingerCount = this.countFingers(landmarks);
+        this.queueStableGesture(fingerCount);
+    }
+
+    queueStableGesture(fingerCount) {
+        const now = performance.now();
+
+        if (fingerCount !== this.lastRawGesture) {
+            this.lastRawGesture = fingerCount;
+            this.rawGestureStartedAt = now;
+            this.rawGestureFrames = 1;
+            return;
+        }
+
+        this.rawGestureFrames++;
+        const requiredHoldMs = fingerCount === 0 ? this.gestureHoldMs + 160 : this.gestureHoldMs;
+        const requiredFrames = fingerCount === 0 ? 7 : 5;
+        const requiredCooldownMs = fingerCount === 0 ? Math.max(this.gestureCooldownMs, 650) : this.gestureCooldownMs;
+        const hasHeldGesture = now - this.rawGestureStartedAt >= requiredHoldMs || this.rawGestureFrames >= requiredFrames;
+        const isNewGesture = fingerCount !== this.lastCommittedGesture;
+        const isPastCooldown = now - this.lastGestureAt >= requiredCooldownMs;
+
+        if (hasHeldGesture && isNewGesture && isPastCooldown) {
+            this.lastCommittedGesture = fingerCount;
+            this.lastGestureAt = now;
             this.handleGesture(fingerCount);
         }
     }
 
+    resetGestureBuffer() {
+        this.lastRawGesture = null;
+        this.rawGestureStartedAt = 0;
+        this.rawGestureFrames = 0;
+    }
+
     countFingers(landmarks) {
-        const fingerTips = [8, 12, 16, 20];
-        const fingerPips = [6, 10, 14, 18];
+        const fingers = [
+            { tip: 8, dip: 7, pip: 6, mcp: 5 },
+            { tip: 12, dip: 11, pip: 10, mcp: 9 },
+            { tip: 16, dip: 15, pip: 14, mcp: 13 },
+            { tip: 20, dip: 19, pip: 18, mcp: 17 }
+        ];
         let count = 0;
 
-        for (let i = 0; i < 4; i++) {
-            if (landmarks[fingerTips[i]].y < landmarks[fingerPips[i]].y) {
+        fingers.forEach((finger) => {
+            if (this.isFingerExtended(landmarks, finger)) {
                 count++;
             }
-        }
+        });
 
-        if (landmarks[4].x < landmarks[3].x) {
+        if (this.isThumbExtended(landmarks)) {
             count++;
-        }
-
-        if (this.isFist(landmarks)) {
-            return 0;
         }
 
         return count;
     }
 
-    isFist(landmarks) {
-        const fingerTips = [8, 12, 16, 20];
-        const palmBase = landmarks[0];
-        let allFolded = true;
+    isFingerExtended(landmarks, finger) {
+        const palmCenter = this.getPalmCenter(landmarks);
+        const tip = landmarks[finger.tip];
+        const dip = landmarks[finger.dip];
+        const pip = landmarks[finger.pip];
+        const mcp = landmarks[finger.mcp];
+        const pipAngle = this.angleBetween(mcp, pip, tip);
+        const dipAngle = this.angleBetween(pip, dip, tip);
+        const tipDistance = this.distance(tip, palmCenter);
+        const pipDistance = this.distance(pip, palmCenter);
+        const liftedFromPalm = tip.y < mcp.y + 0.025;
 
-        for (let tip of fingerTips) {
-            const distance = Math.sqrt(
-                Math.pow(landmarks[tip].x - palmBase.x, 2) +
-                Math.pow(landmarks[tip].y - palmBase.y, 2)
-            );
-            if (distance > 0.15) {
-                allFolded = false;
-                break;
-            }
-        }
+        return pipAngle > 2.4 && dipAngle > 2.2 && tipDistance > pipDistance + 0.018 && liftedFromPalm;
+    }
 
-        return allFolded;
+    isThumbExtended(landmarks) {
+        const palmCenter = this.getPalmCenter(landmarks);
+        const thumbMcp = landmarks[2];
+        const thumbIp = landmarks[3];
+        const thumbTip = landmarks[4];
+        const tipDistance = this.distance(thumbTip, palmCenter);
+        const ipDistance = this.distance(thumbIp, palmCenter);
+        const mcpDistance = this.distance(thumbMcp, palmCenter);
+        const thumbAngle = this.angleBetween(thumbMcp, thumbIp, thumbTip);
+        const horizontalSpread = Math.abs(thumbTip.x - thumbMcp.x) > Math.abs(thumbIp.x - thumbMcp.x) + 0.008;
+
+        return thumbAngle > 2.25 && horizontalSpread && tipDistance > Math.max(ipDistance + 0.02, mcpDistance + 0.045);
+    }
+
+    getPalmCenter(landmarks) {
+        const points = [0, 5, 9, 13, 17].map((index) => landmarks[index]);
+        return points.reduce((center, point) => ({
+            x: center.x + point.x / points.length,
+            y: center.y + point.y / points.length,
+            z: center.z + (point.z || 0) / points.length
+        }), { x: 0, y: 0, z: 0 });
+    }
+
+    angleBetween(a, b, c) {
+        const ab = { x: a.x - b.x, y: a.y - b.y, z: (a.z || 0) - (b.z || 0) };
+        const cb = { x: c.x - b.x, y: c.y - b.y, z: (c.z || 0) - (b.z || 0) };
+        const dot = ab.x * cb.x + ab.y * cb.y + ab.z * cb.z;
+        const abLength = Math.sqrt(ab.x * ab.x + ab.y * ab.y + ab.z * ab.z);
+        const cbLength = Math.sqrt(cb.x * cb.x + cb.y * cb.y + cb.z * cb.z);
+
+        if (abLength === 0 || cbLength === 0) return 0;
+
+        const cosine = Math.min(1, Math.max(-1, dot / (abLength * cbLength)));
+        return Math.acos(cosine);
+    }
+
+    distance(a, b) {
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const dz = (a.z || 0) - (b.z || 0);
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     handleGesture(fingerCount) {
@@ -241,6 +323,13 @@ class MagicFingers {
     }
 
     triggerEffect(action) {
+        const actionGesture = Number(action);
+        if (!Number.isNaN(actionGesture)) {
+            this.lastCommittedGesture = actionGesture;
+            this.lastGestureAt = performance.now();
+            this.resetGestureBuffer();
+        }
+
         switch(action) {
             case '0':
                 this.resetScene();
@@ -269,6 +358,7 @@ class MagicFingers {
         this.clearAll();
         this.currentState = `digit-${digit}`;
         document.getElementById('status').classList.add('active');
+        document.getElementById('status').innerHTML = `${digit} 指魔法`;
         this.createDigitParticles(digit);
         this.createExplosion();
         this.cameraTargetZ = 20;
@@ -301,7 +391,7 @@ class MagicFingers {
         const extraCount = this.isMobile ? 50 : 100;
 
         path.forEach((pos, index) => {
-            setTimeout(() => {
+            this.scheduleEffect(() => {
                 for (let i = 0; i < particleCount; i++) {
                     const particle = this.createParticle(
                         pos[0] * 1.5 + (Math.random() - 0.5) * 0.5,
@@ -317,7 +407,7 @@ class MagicFingers {
         });
 
         for (let i = 0; i < extraCount; i++) {
-            setTimeout(() => {
+            this.scheduleEffect(() => {
                 const particle = this.createParticle(
                     (Math.random() - 0.5) * 20,
                     (Math.random() - 0.5) * 15,
@@ -336,7 +426,7 @@ class MagicFingers {
         this.clearAll();
         this.currentState = 'geometry';
         document.getElementById('status').classList.add('active');
-        document.getElementById('status').innerHTML = '✊ 4 几何世界';
+        document.getElementById('status').innerHTML = '🖖 4 几何世界';
         
         this.createGeometricShapes();
         this.createExplosion();
@@ -351,7 +441,7 @@ class MagicFingers {
         ];
 
         shapes.forEach((shape, index) => {
-            setTimeout(() => {
+            this.scheduleEffect(() => {
                 let geometry;
                 const wireframeMaterial = new THREE.MeshBasicMaterial({
                     color: shape.color,
@@ -430,7 +520,7 @@ class MagicFingers {
         const extraCount = this.isMobile ? 80 : 150;
 
         uPath.forEach((pos, index) => {
-            setTimeout(() => {
+            this.scheduleEffect(() => {
                 for (let i = 0; i < particleCount; i++) {
                     const particle = this.createParticle(
                         pos[0] * 1.2 + (Math.random() - 0.5) * 0.6,
@@ -447,7 +537,7 @@ class MagicFingers {
         });
 
         for (let i = 0; i < extraCount; i++) {
-            setTimeout(() => {
+            this.scheduleEffect(() => {
                 const particle = this.createParticle(
                     (Math.random() - 0.5) * 25,
                     (Math.random() - 0.5) * 15,
@@ -465,7 +555,7 @@ class MagicFingers {
         const balloonColors = [0xff6b6b, 0x4ecdc4, 0xffe66d, 0x95e1d3, 0xf38181, 0xaa96da];
         
         for (let i = 0; i < (this.isMobile ? 10 : 18); i++) {
-            setTimeout(() => {
+            this.scheduleEffect(() => {
                 const balloon = this.createBalloon(balloonColors[i % balloonColors.length]);
                 this.geometries.push(balloon);
             }, i * (this.isMobile ? 250 : 180));
@@ -515,6 +605,8 @@ class MagicFingers {
         group.userData.floatSpeed = (this.isMobile ? 0.035 : 0.045) + Math.random() * 0.02;
         group.userData.wobbleSpeed = Math.random() * 3;
         group.userData.wobbleAmount = Math.random() * 0.15;
+        group.userData.baseX = group.position.x;
+        group.userData.baseRotationZ = group.rotation.z;
 
         this.scene.add(group);
         return group;
@@ -522,7 +614,7 @@ class MagicFingers {
 
     createFlowers() {
         for (let i = 0; i < (this.isMobile ? 8 : 15); i++) {
-            setTimeout(() => {
+            this.scheduleEffect(() => {
                 const flower = this.createFlower();
                 this.geometries.push(flower);
             }, i * (this.isMobile ? 350 : 280) + 1200);
@@ -581,6 +673,11 @@ class MagicFingers {
         );
         group.userData.floatSpeed = (this.isMobile ? 0.025 : 0.035) + Math.random() * 0.02;
         group.userData.rotationSpeed = (Math.random() - 0.5) * 0.03;
+        group.userData.wobbleSpeed = 0.8 + Math.random() * 2;
+        group.userData.wobbleAmount = 0.08 + Math.random() * 0.12;
+        group.userData.baseX = group.position.x;
+        group.userData.baseRotationZ = group.rotation.z;
+        group.userData.spinZ = 0;
 
         this.scene.add(group);
         return group;
@@ -634,7 +731,7 @@ class MagicFingers {
         const explosionColors = [0x00ffff, 0xff00ff, 0xffff00, 0xff0066, 0x00ff66];
         
         for (let i = 0; i < (this.isMobile ? 80 : 150); i++) {
-            setTimeout(() => {
+            this.scheduleEffect(() => {
                 const angle = Math.random() * Math.PI * 2;
                 const elevation = (Math.random() - 0.5) * Math.PI;
                 const speed = 0.3 + Math.random() * 0.3;
@@ -662,7 +759,7 @@ class MagicFingers {
         const colors = [0xff0066, 0xff00ff, 0xff3399, 0xff66ff, 0xff99ff];
         
         for (let i = 0; i < (this.isMobile ? 200 : 400); i++) {
-            setTimeout(() => {
+            this.scheduleEffect(() => {
                 const angle = Math.random() * Math.PI * 2;
                 const elevation = (Math.random() - 0.5) * Math.PI;
                 const speed = 0.5 + Math.random() * 0.5;
@@ -688,12 +785,47 @@ class MagicFingers {
     }
 
     clearAll() {
-        this.particles.forEach(p => this.scene.remove(p));
-        this.geometries.forEach(g => this.scene.remove(g));
-        this.trails.forEach(t => this.scene.remove(t));
+        this.cancelEffectTimers();
+        this.effectGeneration++;
+        this.particles.forEach(p => this.removeObject(p));
+        this.geometries.forEach(g => this.removeObject(g));
+        this.trails.forEach(t => this.removeObject(t));
         this.particles = [];
         this.geometries = [];
         this.trails = [];
+    }
+
+    scheduleEffect(callback, delay) {
+        const generation = this.effectGeneration;
+        const timerId = setTimeout(() => {
+            this.effectTimers.delete(timerId);
+            if (generation !== this.effectGeneration) return;
+            callback();
+        }, delay);
+
+        this.effectTimers.add(timerId);
+        return timerId;
+    }
+
+    cancelEffectTimers() {
+        this.effectTimers.forEach((timerId) => clearTimeout(timerId));
+        this.effectTimers.clear();
+    }
+
+    removeObject(object) {
+        this.scene.remove(object);
+
+        object.traverse((child) => {
+            if (child.geometry) {
+                child.geometry.dispose();
+            }
+
+            if (Array.isArray(child.material)) {
+                child.material.forEach((material) => material.dispose());
+            } else if (child.material) {
+                child.material.dispose();
+            }
+        });
     }
 
     resetScene() {
@@ -728,10 +860,17 @@ class MagicFingers {
         mobileBtns.forEach(btn => {
             btn.addEventListener('touchstart', (e) => {
                 e.preventDefault();
+                btn.dataset.touchHandled = 'true';
                 const action = btn.getAttribute('data-action');
                 this.triggerEffect(action);
-            });
-            btn.addEventListener('click', () => {
+            }, { passive: false });
+            btn.addEventListener('click', (e) => {
+                if (btn.dataset.touchHandled === 'true') {
+                    e.preventDefault();
+                    btn.dataset.touchHandled = 'false';
+                    return;
+                }
+
                 const action = btn.getAttribute('data-action');
                 this.triggerEffect(action);
             });
@@ -781,7 +920,7 @@ class MagicFingers {
             const excess = this.particles.length - this.maxParticles;
             for (let i = 0; i < excess; i++) {
                 const p = this.particles.shift();
-                if (p) this.scene.remove(p);
+                if (p) this.removeObject(p);
             }
         }
 
@@ -807,7 +946,7 @@ class MagicFingers {
             particle.rotation.y += 0.04;
 
             if (particle.userData.life <= 0) {
-                this.scene.remove(particle);
+                this.removeObject(particle);
                 return false;
             }
             return true;
@@ -823,17 +962,21 @@ class MagicFingers {
             trail.scale.setScalar(trail.userData.life);
 
             if (trail.userData.life <= 0) {
-                this.scene.remove(trail);
+                this.removeObject(trail);
                 return false;
             }
             return true;
         });
 
         this.geometries = this.geometries.filter(geometry => {
-            if (geometry.userData.rotationSpeed) {
-                geometry.rotation.x += geometry.userData.rotationSpeed.x;
-                geometry.rotation.y += geometry.userData.rotationSpeed.y;
-                geometry.rotation.z += geometry.userData.rotationSpeed.z;
+            const rotationSpeed = geometry.userData.rotationSpeed;
+
+            if (rotationSpeed && typeof rotationSpeed === 'object') {
+                geometry.rotation.x += rotationSpeed.x || 0;
+                geometry.rotation.y += rotationSpeed.y || 0;
+                geometry.rotation.z += rotationSpeed.z || 0;
+            } else if (typeof rotationSpeed === 'number') {
+                geometry.userData.spinZ = (geometry.userData.spinZ || 0) + rotationSpeed;
             }
             
             if (geometry.userData.pulseSpeed) {
@@ -842,13 +985,22 @@ class MagicFingers {
             }
             
             if (geometry.userData.floatSpeed) {
+                if (typeof geometry.userData.baseX !== 'number') {
+                    geometry.userData.baseX = geometry.position.x;
+                }
+                if (typeof geometry.userData.baseRotationZ !== 'number') {
+                    geometry.userData.baseRotationZ = geometry.rotation.z;
+                }
+
+                const wobbleSpeed = geometry.userData.wobbleSpeed || 0;
+                const wobbleAmount = geometry.userData.wobbleAmount || 0;
                 geometry.position.y += geometry.userData.floatSpeed;
-                geometry.position.x += Math.sin(time * geometry.userData.wobbleSpeed) * geometry.userData.wobbleAmount;
-                geometry.rotation.z = Math.sin(time * 0.5) * 0.1;
+                geometry.position.x = geometry.userData.baseX + Math.sin(time * wobbleSpeed) * wobbleAmount;
+                geometry.rotation.z = geometry.userData.baseRotationZ + Math.sin(time * 0.5) * 0.1 + (geometry.userData.spinZ || 0);
             }
 
             if (geometry.position.y > 30) {
-                this.scene.remove(geometry);
+                this.removeObject(geometry);
                 return false;
             }
             return true;
