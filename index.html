@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#000000">
-    <title>指尖魔法 - 3D粒子交互特效</title>
+    <meta name="theme-color" content="#0a0a0f">
+    <title>指尖魔法 - 赛博朋克版</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -23,9 +26,46 @@
         }
 
         body {
-            background: #000;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 50%, #0f1a2e 100%);
+            font-family: 'Rajdhani', sans-serif;
             touch-action: none;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.15),
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 999;
+            animation: scanline 8s linear infinite;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, transparent 0%, rgba(0,0,0,0.4) 100%);
+            pointer-events: none;
+            z-index: 998;
+        }
+
+        @keyframes scanline {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(10px); }
         }
 
         #canvas-container {
@@ -39,31 +79,51 @@
 
         #webcam {
             position: fixed;
-            bottom: 10px;
-            right: 10px;
-            width: 120px;
-            height: 90px;
-            border: 2px solid rgba(255, 255, 255, 0.25);
-            border-radius: 8px;
+            bottom: 15px;
+            right: 15px;
+            width: 140px;
+            height: 105px;
+            border: 2px solid rgba(0, 255, 255, 0.5);
+            border-radius: 12px;
             z-index: 100;
             transform: scaleX(-1);
             object-fit: cover;
-            background: #111;
+            background: #0a0a0f;
+            box-shadow: 
+                0 0 20px rgba(0, 255, 255, 0.3), 
+                inset 0 0 30px rgba(0, 255, 255, 0.1),
+                0 0 60px rgba(0, 255, 255, 0.2);
+            animation: webcamPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes webcamPulse {
+            0%, 100% { 
+                box-shadow: 
+                    0 0 20px rgba(0, 255, 255, 0.3), 
+                    inset 0 0 30px rgba(0, 255, 255, 0.1),
+                    0 0 60px rgba(0, 255, 255, 0.2);
+            }
+            50% { 
+                box-shadow: 
+                    0 0 30px rgba(255, 0, 255, 0.4), 
+                    inset 0 0 30px rgba(255, 0, 255, 0.15),
+                    0 0 80px rgba(255, 0, 255, 0.3);
+            }
         }
 
         @media (max-width: 768px) {
             #webcam {
-                width: 100px;
-                height: 75px;
-                bottom: 8px;
-                right: 8px;
+                width: 110px;
+                height: 82px;
+                bottom: 85px;
+                right: 10px;
             }
         }
 
         @media (max-width: 480px) {
             #webcam {
-                width: 80px;
-                height: 60px;
+                width: 90px;
+                height: 67px;
             }
         }
 
@@ -72,28 +132,105 @@
             top: 15px;
             right: 15px;
             z-index: 100;
+            display: flex;
+            gap: 10px;
         }
 
-        #fullscreen-btn {
-            background: rgba(255, 255, 255, 0.15);
+        .control-btn {
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.15) 0%, rgba(255, 0, 255, 0.15) 100%);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: white;
-            padding: 10px 16px;
+            border: 1px solid rgba(0, 255, 255, 0.4);
+            color: #00ffff;
+            padding: 10px 18px;
             border-radius: 25px;
             cursor: pointer;
-            font-size: 13px;
-            transition: all 0.2s ease;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase;
+            letter-spacing: 1px;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
             user-select: none;
             -webkit-user-select: none;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 
+                0 0 15px rgba(0, 255, 255, 0.2),
+                inset 0 0 15px rgba(0, 255, 255, 0.05);
+            animation: btnGlow 3s ease-in-out infinite;
         }
 
-        #fullscreen-btn:active {
-            background: rgba(255, 255, 255, 0.25);
+        .control-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s;
+        }
+
+        .control-btn::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: conic-gradient(
+                transparent, 
+                rgba(0, 255, 255, 0.1), 
+                transparent, 
+                rgba(255, 0, 255, 0.1), 
+                transparent
+            );
+            animation: rotate 4s linear infinite;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: -1;
+        }
+
+        @keyframes rotate {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes btnGlow {
+            0%, 100% { 
+                box-shadow: 
+                    0 0 15px rgba(0, 255, 255, 0.2),
+                    inset 0 0 15px rgba(0, 255, 255, 0.05);
+            }
+            50% { 
+                box-shadow: 
+                    0 0 25px rgba(0, 255, 255, 0.3),
+                    inset 0 0 20px rgba(0, 255, 255, 0.1);
+            }
+        }
+
+        .control-btn:hover::before {
+            left: 100%;
+        }
+
+        .control-btn:hover::after {
+            opacity: 1;
+        }
+
+        .control-btn:hover {
+            border-color: rgba(255, 0, 255, 0.8);
+            color: #ff00ff;
+            box-shadow: 
+                0 0 35px rgba(255, 0, 255, 0.5), 
+                inset 0 0 25px rgba(255, 0, 255, 0.15),
+                0 0 60px rgba(255, 0, 255, 0.3);
+            transform: translateY(-3px) scale(1.02);
+        }
+
+        .control-btn:active {
             transform: scale(0.95);
         }
 
@@ -102,19 +239,45 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 18px;
+            color: rgba(0, 255, 255, 0.6);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 20px;
             text-align: center;
             z-index: 50;
             pointer-events: none;
-            transition: opacity 0.5s;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 0 20px;
-            line-height: 1.5;
+            line-height: 1.6;
+            text-shadow: 
+                0 0 20px rgba(0, 255, 255, 0.5), 
+                0 0 40px rgba(0, 255, 255, 0.3),
+                0 0 60px rgba(0, 255, 255, 0.2);
+            letter-spacing: 2px;
+            animation: statusPulse 3s ease-in-out infinite;
+        }
+
+        #status.active {
+            color: rgba(255, 0, 255, 0.9);
+            text-shadow: 
+                0 0 20px rgba(255, 0, 255, 0.8), 
+                0 0 40px rgba(255, 0, 255, 0.5),
+                0 0 80px rgba(255, 0, 255, 0.3);
+            animation: statusActivePulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes statusPulse {
+            0%, 100% { text-shadow: 0 0 20px rgba(0, 255, 255, 0.5), 0 0 40px rgba(0, 255, 255, 0.3), 0 0 60px rgba(0, 255, 255, 0.2); }
+            50% { text-shadow: 0 0 30px rgba(0, 255, 255, 0.7), 0 0 50px rgba(0, 255, 255, 0.4), 0 0 70px rgba(0, 255, 255, 0.3); }
+        }
+
+        @keyframes statusActivePulse {
+            0%, 100% { text-shadow: 0 0 20px rgba(255, 0, 255, 0.8), 0 0 40px rgba(255, 0, 255, 0.5), 0 0 80px rgba(255, 0, 255, 0.3); }
+            50% { text-shadow: 0 0 30px rgba(255, 0, 255, 1), 0 0 60px rgba(255, 0, 255, 0.7), 0 0 100px rgba(255, 0, 255, 0.5); }
         }
 
         @media (max-width: 480px) {
             #status {
-                font-size: 15px;
+                font-size: 16px;
             }
         }
 
@@ -124,22 +287,57 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: #000;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a0a2e 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             z-index: 200;
-            transition: opacity 0.5s;
+            transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .loader {
-            width: 50px;
-            height: 50px;
-            border: 3px solid rgba(255, 255, 255, 0.1);
-            border-top-color: #00ffff;
+        .loader-container {
+            position: relative;
+            width: 100px;
+            height: 100px;
+        }
+
+        .loader-ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 3px solid transparent;
             border-radius: 50%;
-            animation: spin 1s linear infinite;
+            animation: spin 1.5s linear infinite;
+        }
+
+        .loader-ring:nth-child(1) {
+            border-top-color: #00ffff;
+            border-right-color: rgba(0, 255, 255, 0.3);
+            animation-delay: 0s;
+            box-shadow: 0 0 15px #00ffff;
+        }
+
+        .loader-ring:nth-child(2) {
+            border-right-color: #ff00ff;
+            border-bottom-color: rgba(255, 0, 255, 0.3);
+            animation-delay: 0.25s;
+            width: 75%;
+            height: 75%;
+            top: 12.5%;
+            left: 12.5%;
+            box-shadow: 0 0 15px #ff00ff;
+        }
+
+        .loader-ring:nth-child(3) {
+            border-bottom-color: #ffff00;
+            border-left-color: rgba(255, 255, 0, 0.3);
+            animation-delay: 0.5s;
+            width: 50%;
+            height: 50%;
+            top: 25%;
+            left: 25%;
+            box-shadow: 0 0 15px #ffff00;
         }
 
         @keyframes spin {
@@ -147,41 +345,124 @@
         }
 
         .loading-text {
-            color: rgba(255, 255, 255, 0.7);
-            margin-top: 20px;
+            color: #00ffff;
+            margin-top: 35px;
+            font-family: 'Orbitron', sans-serif;
             font-size: 14px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            text-shadow: 
+                0 0 10px rgba(0, 255, 255, 0.7),
+                0 0 20px rgba(0, 255, 255, 0.4),
+                0 0 30px rgba(0, 255, 255, 0.2);
+            animation: textPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes textPulse {
+            0%, 100% { 
+                color: #00ffff; 
+                text-shadow: 
+                    0 0 10px rgba(0, 255, 255, 0.7),
+                    0 0 20px rgba(0, 255, 255, 0.4);
+            }
+            50% { 
+                color: #ff00ff; 
+                text-shadow: 
+                    0 0 10px rgba(255, 0, 255, 0.7),
+                    0 0 20px rgba(255, 0, 255, 0.4);
+            }
+        }
+
+        .loading-bar {
+            width: 220px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            margin-top: 25px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+        }
+
+        .loading-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            animation: shimmer 1.5s ease-in-out infinite;
+        }
+
+        .loading-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #00ffff, #ff00ff, #ffff00, #00ffff);
+            background-size: 300% 100%;
+            border-radius: 4px;
+            animation: loading 2s ease-in-out infinite, gradient 2s linear infinite;
+        }
+
+        @keyframes loading {
+            0% { width: 0%; }
+            50% { width: 100%; }
+            100% { width: 0%; }
+        }
+
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 300% 50%; }
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
 
         .hint-text {
             position: fixed;
-            bottom: 15px;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 12px;
             z-index: 100;
             text-align: center;
             padding: 0 15px;
-            line-height: 1.4;
+            line-height: 1.5;
             width: 100%;
-            max-width: 600px;
+            max-width: 700px;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+
+        .hint-text span {
+            color: rgba(0, 255, 255, 0.7);
+            font-weight: 700;
         }
 
         @media (min-width: 768px) {
             .hint-text {
-                font-size: 13px;
-                bottom: 20px;
+                font-size: 14px;
+                bottom: 25px;
             }
         }
 
         .mobile-controls {
             display: none;
             position: fixed;
-            bottom: 80px;
+            bottom: 10px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
-            gap: 10px;
+            gap: 8px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(0, 255, 255, 0.2);
         }
 
         @media (max-width: 768px) {
@@ -191,54 +472,112 @@
         }
 
         .mobile-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            color: white;
-            padding: 12px 16px;
-            border-radius: 15px;
-            font-size: 12px;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            background: linear-gradient(135deg, rgba(0, 255, 255, 0.2) 0%, rgba(255, 0, 255, 0.2) 100%);
+            border: 1px solid rgba(0, 255, 255, 0.4);
+            color: #00ffff;
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+            animation: mobileBtnGlow 2.5s ease-in-out infinite;
+        }
+
+        @keyframes mobileBtnGlow {
+            0%, 100% { box-shadow: 0 0 10px rgba(0, 255, 255, 0.2); }
+            50% { box-shadow: 0 0 20px rgba(0, 255, 255, 0.4); }
         }
 
         .mobile-btn:active {
-            background: rgba(255, 255, 255, 0.2);
+            background: linear-gradient(135deg, rgba(255, 0, 255, 0.4) 0%, rgba(0, 255, 255, 0.4) 100%);
+            border-color: rgba(255, 0, 255, 0.7);
+            color: #ff00ff;
+            transform: scale(0.95);
+            box-shadow: 0 0 25px rgba(255, 0, 255, 0.6);
+        }
+
+        .particle-glow {
+            position: fixed;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 2;
+            opacity: 0.8;
+            transition: opacity 0.3s;
+            filter: blur(40px);
+        }
+
+        .glow-1 {
+            background: radial-gradient(circle, rgba(0, 255, 255, 0.25) 0%, transparent 70%);
+            animation: floatGlow 7s ease-in-out infinite;
+        }
+
+        .glow-2 {
+            background: radial-gradient(circle, rgba(255, 0, 255, 0.25) 0%, transparent 70%);
+            animation: floatGlow 9s ease-in-out infinite reverse;
+        }
+
+        @keyframes floatGlow {
+            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+            25% { transform: translate(40px, -20px) scale(1.15); opacity: 0.9; }
+            50% { transform: translate(20px, -50px) scale(1); opacity: 0.7; }
+            75% { transform: translate(-30px, -25px) scale(1.2); opacity: 1; }
         }
     </style>
 </head>
 <body>
+    <div class="particle-glow glow-1" style="top: 20%; left: 10%;"></div>
+    <div class="particle-glow glow-2" style="bottom: 20%; right: 10%;"></div>
+
     <div id="loading">
-        <div class="loader"></div>
-        <div class="loading-text">正在加载魔法引擎...</div>
+        <div class="loader-container">
+            <div class="loader-ring"></div>
+            <div class="loader-ring"></div>
+            <div class="loader-ring"></div>
+        </div>
+        <div class="loading-text">初始化魔法引擎</div>
+        <div class="loading-bar">
+            <div class="loading-progress"></div>
+        </div>
     </div>
 
     <div id="canvas-container"></div>
     <video id="webcam" autoplay playsinline muted></video>
 
     <div id="controls">
-        <button id="fullscreen-btn">
+        <button id="fullscreen-btn" class="control-btn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/>
             </svg>
             全屏
         </button>
+        <button id="effects-btn" class="control-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            特效
+        </button>
     </div>
 
     <div id="status">
-        <div>等待摄像头连接...</div>
-        <div style="font-size: 12px; margin-top: 10px;">请允许访问摄像头以体验指尖魔法</div>
+        <div>等待系统启动...</div>
+        <div style="font-size: 12px; margin-top: 15px; color: rgba(255, 255, 255, 0.4);">请允许摄像头访问以激活手势识别</div>
     </div>
 
     <div class="mobile-controls" id="mobile-controls">
         <button class="mobile-btn" data-action="1">👆 1</button>
         <button class="mobile-btn" data-action="2">✌️ 2</button>
         <button class="mobile-btn" data-action="3">3️⃣ 3</button>
+        <button class="mobile-btn" data-action="4">✊ 4</button>
         <button class="mobile-btn" data-action="5">🖐️ U</button>
         <button class="mobile-btn" data-action="0">✊ 重置</button>
     </div>
 
     <div class="hint-text">
-        👆1根手指 - 数字1 &nbsp;|&nbsp; ✌️2根手指 - 数字2 &nbsp;|&nbsp; 3️⃣3根手指 - 数字3 &nbsp;|&nbsp; 🖐️5指 - U字告白 &nbsp;|&nbsp; ✊握拳 - 重置
+        <span>👆1</span> 数字1 &nbsp;|&nbsp; <span>✌️2</span> 数字2 &nbsp;|&nbsp; <span>3️⃣3</span> 数字3 &nbsp;|&nbsp; <span>✊4</span> 几何体 &nbsp;|&nbsp; <span>🖐️5</span> U字告白 &nbsp;|&nbsp; <span>✊握拳</span> 重置
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

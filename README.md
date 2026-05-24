@@ -119,6 +119,17 @@ npx serve .
 
 详细部署步骤请查看 [DEPLOY.md](DEPLOY.md)！
 
+## 🔄 如何更新版本？
+
+修改代码后，只需要三步即可更新：
+```bash
+git add .
+git commit -m "描述你的修改"
+git push
+```
+
+详细更新指南请查看 [UPDATE.md](UPDATE.md)！
+
 ## 🌟 扩展建议
 
 可以添加的功能：
